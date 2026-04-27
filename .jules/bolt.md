@@ -1,0 +1,3 @@
+## 2025-04-27 - [High-level wrapper overhead in core graph traversal]
+**Learning:** Functions like `ov::Node::get_users` that are fundamental to graph traversal and transformation passes can suffer significant performance overhead from creating intermediate `ov::Output` and `ov::Input` wrappers. These wrappers often involve `std::vector` or `std::set` allocations and multiple `std::shared_ptr` increments.
+**Action:** When optimizing core graph operations, consider bypassing high-level wrappers and directly accessing the internal `descriptor` layer (`ov::descriptor::Output`, `ov::descriptor::Input`) and private members like `m_outputs`. This reduces memory allocations and reference counting overhead while preserving semantics.

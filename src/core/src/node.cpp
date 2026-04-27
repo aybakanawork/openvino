@@ -4,6 +4,7 @@
 
 #include "openvino/core/node.hpp"
 
+#include <algorithm>
 #include <memory>
 #include <sstream>
 #include <typeindex>
@@ -509,10 +510,13 @@ bool is_used(Node* node);
 }
 
 ov::NodeVector ov::Node::get_users(bool check_is_used) const {
+    // Bolt: Optimized to avoid creation of intermediate ov::Output and ov::Input wrappers.
+    // This reduces memory allocations and shared_ptr increments in core graph traversal.
+    // It preserves the original semantics (including duplicates and order).
     NodeVector result;
-    for (const auto& output : outputs()) {
-        for (auto input : output.get_target_inputs()) {
-            Node* input_node = input.get_node();
+    for (const auto& output : m_outputs) {
+        for (auto* input : output.get_inputs()) {
+            Node* input_node = input->get_raw_pointer_node();
             if (!check_is_used || is_used(input_node)) {
                 result.push_back(input_node->shared_from_this());
             }
