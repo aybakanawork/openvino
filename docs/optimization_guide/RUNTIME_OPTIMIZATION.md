@@ -130,7 +130,26 @@ infer_request.infer()
 | **PrePostProcessor** | Preprocessing | Reduced host CPU load and data transfer |
 | **get_tensor** | Data Handling | Zero-copy data population |
 
-## 7. Optimizing Generative AI (LLMs)
+## 7. GPU-Specific Optimizations
+
+Intel GPUs (integrated and discrete) offer massive parallel processing power, making them ideal for high-throughput inference.
+
+### LATENCY vs THROUGHPUT on GPU
+- **LATENCY**: Often uses a single stream and avoids batching to minimize the time for a single response.
+- **THROUGHPUT**: Automatically enables **Automatic Batching** and multiple streams to saturate the GPU's execution units.
+
+```python
+# Optimize for GPU throughput
+compiled_model = core.compile_model(model, "GPU", {"PERFORMANCE_HINT": "THROUGHPUT"})
+```
+
+### Preprocessing on GPU
+Using the `PrePostProcessor` to move resizing and color conversion to the GPU is highly recommended. This avoids the bottleneck of transferring large raw images to the GPU; instead, the GPU handles the conversion internally.
+
+### Remote Tensors
+For high-performance video pipelines (e.g., using VA-API or DirectX), use **Remote Tensors** to share memory between the decoder and the OpenVINO GPU plugin without copying data between the CPU and GPU.
+
+## 8. Optimizing Generative AI (LLMs)
 
 Generative AI models have unique performance characteristics, primarily being memory-bandwidth bound during the generation phase.
 
@@ -166,3 +185,33 @@ When an agent needs to process multiple information sources or tools in parallel
 
 ### Continuous Batching and Serving
 For deploying agents at scale, consider using **OpenVINO™ Model Server (OVMS)**, which supports continuous batching for LLMs, maximizing throughput while maintaining reasonable latency for multiple concurrent agent sessions.
+
+## 9. Integration with Agent Frameworks (LlamaIndex / LangChain)
+
+OpenVINO™ integrates with popular agentic and RAG frameworks to simplify optimization.
+
+### LlamaIndex Integration
+When using `LlamaIndex`, you can pass OpenVINO™ performance hints directly through the `OpenVINOLLM` class.
+
+```python
+from llama_index.llms.openvino import OpenVINOLLM
+
+llm = OpenVINOLLM(
+    model_id_or_path="model_path",
+    device_name="GPU",
+    model_kwargs={"ov_config": {"PERFORMANCE_HINT": "LATENCY"}},
+)
+```
+
+## 10. AI Agent Performance Patterns
+
+Agents require a balance of low-latency reasoning and high-throughput tool execution.
+
+### Reasoning Loop (Latency-Critical)
+The main "Thinking" loop of an agent should use the `LATENCY` hint. This ensures the agent can quickly decide on the next action or tool to call.
+
+### Multi-Tool Execution (Throughput-Critical)
+When an agent triggers multiple tools (e.g., searching three different databases simultaneously), use the `Async API` with the `THROUGHPUT` hint. This allows OpenVINO to run multiple tool-related model inferences (like embedding lookups or small classifier models) in parallel across available hardware streams.
+
+### Monitoring Performance
+In agentic workflows, monitor **Tokens Per Second (TPS)** and **Time To First Token (TTFT)**. TTFT is crucial for agent responsiveness, while TPS determines the overall speed of the agent's complex multi-step reasoning.
