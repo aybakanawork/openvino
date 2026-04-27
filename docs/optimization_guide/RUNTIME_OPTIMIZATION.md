@@ -129,3 +129,40 @@ infer_request.infer()
 | **Model Caching** | Initialization | Faster application startup |
 | **PrePostProcessor** | Preprocessing | Reduced host CPU load and data transfer |
 | **get_tensor** | Data Handling | Zero-copy data population |
+
+## 7. Optimizing Generative AI (LLMs)
+
+Generative AI models have unique performance characteristics, primarily being memory-bandwidth bound during the generation phase.
+
+### Weight Compression
+Reducing the weight precision to INT4 or INT8 is critical for LLMs to reduce memory bandwidth pressure and fit larger models into device memory. This is typically done during model export using `optimum-intel` or NNCF.
+
+```bash
+optimum-cli export openvino --model <MODEL_ID> --weight-format int4 <OUTPUT_DIR>
+```
+
+### KV Caching
+Maintaining a Key-Value (KV) cache across generation steps is essential for efficiency. The `openvino_genai` library handles this automatically. For chat scenarios, use `start_chat()` and `finish_chat()` to maintain the context.
+
+### Speculative Decoding
+Speculative decoding uses a smaller "draft" model to predict multiple tokens at once, which are then verified by the main model in a single forward pass. This can significantly increase the tokens-per-second rate.
+
+```python
+import openvino_genai as ov_genai
+
+draft_model = ov_genai.draft_model(draft_model_path, device)
+pipe = ov_genai.LLMPipeline(main_model_path, device, draft_model=draft_model)
+```
+
+## 8. Optimization for AI Agents
+
+AI Agents often involve complex workflows, including multiple model calls, tool use, and loop-based logic.
+
+### Responsive Latency
+For agentic loops, use the `LATENCY` performance hint for the "think" or "plan" phases to ensure the agent reacts quickly.
+
+### Parallel Execution (Tool Use)
+When an agent needs to process multiple information sources or tools in parallel, use the `THROUGHPUT` hint and `AsyncInferQueue`. This allows the agent to trigger multiple "perceptions" or "actions" simultaneously, reducing the overall time to reach a goal.
+
+### Continuous Batching and Serving
+For deploying agents at scale, consider using **OpenVINO™ Model Server (OVMS)**, which supports continuous batching for LLMs, maximizing throughput while maintaining reasonable latency for multiple concurrent agent sessions.
